@@ -583,6 +583,8 @@ function M.sync_dir(dir, upload)
   })
 end
 
+-- Show dir deff
+-- @param dir string
 function M.show_dir_diff(dir)
   local remote_path, deployment = M.remote_rsync_path(dir)
   if remote_path == nil then
@@ -661,7 +663,9 @@ function M.show_dir_diff(dir)
   })
 end
 
--- Функция для скачивания удаленного файла во временный файл для сравнения
+-- Function to download remote file to tmp for diff
+-- @param remote_path string
+-- @param callback function
 function M.download_for_diff(remote_path, callback)
   local temp_file = vim.fn.tempname()
 
@@ -689,8 +693,7 @@ function M.download_for_diff(remote_path, callback)
     end,
     on_exit = function(_, code, _)
       if code == 0 then
-        -- vim.notify("File downloaded for diff", vim.log.levels.INFO, {
-        vim.notify("File downloaded for diff - ", vim.log.levels.INFO, {
+        vim.notify("File downloaded for diff", vim.log.levels.INFO, {
           id = notification_id,
           title = "Transfer.nvim",
           icon = "",
@@ -706,21 +709,22 @@ function M.download_for_diff(remote_path, callback)
           replace = notification_id,
           icon = " ",
         })
-        -- Удаляем временный файл в случае ошибки
+        -- Delete tmp file if error
         pcall(vim.fn.delete, temp_file)
       end
     end,
   })
 end
 
--- Функция для сравнения локального и удаленного файла
+-- Function to download remote file to temporary file for diff comparison
+-- @param local_path string
 function M.diff_file(local_path)
   if local_path == nil then
     local_path = vim.fn.expand("%:p")
   end
   local_path = vim.fn.fnamemodify(local_path, ":p")
 
-  -- Проверяем существование локального файла
+  -- Check if local file exists
   if not vim.fn.filereadable(local_path) then
     vim.notify("Local file not found: " .. local_path, vim.log.levels.ERROR)
     return
@@ -732,7 +736,7 @@ function M.diff_file(local_path)
   end
 
   M.download_for_diff(remote_path, function(temp_file)
-    -- Сохраняем текущий буфер перед открытием diff
+    -- Save current buffer before opening diff
     local current_buf = vim.api.nvim_get_current_buf()
     if vim.bo[current_buf].modified then
       vim.notify("Current buffer has unsaved changes. Please save before diff.", vim.log.levels.WARN)
@@ -740,26 +744,44 @@ function M.diff_file(local_path)
       return
     end
 
-    -- Открываем сравнение в новом split
+    -- Open diff comparison in new split
     local local_filename = vim.fn.fnamemodify(local_path, ":t")
     vim.cmd(string.format("vert diffsplit %s", temp_file))
 
-    -- Получаем текущий буфер (удаленный файл)
+    -- Get current buffer (remote file)
     local bufnr = vim.api.nvim_get_current_buf()
 
-    -- Устанавливаем имя буфера для удаленного файла
+    -- Set buffer name for remote file
     vim.api.nvim_buf_set_name(bufnr, "REMOTE:" .. local_filename)
 
-    -- Настройки для буфера удаленного файла (современный API)
+    -- Set buffer options for remote file
     vim.bo[bufnr].buftype = "nowrite"
     vim.bo[bufnr].bufhidden = "wipe"
     vim.bo[bufnr].readonly = true
 
-    -- Удаляем временный файл при закрытии буфера
+    -- Function to safely delete temporary file
+    local function cleanup_temp_file()
+      local success, err = pcall(function()
+        if vim.fn.filereadable(temp_file) == 1 then
+          vim.fn.delete(temp_file)
+        end
+      end)
+      if not success then
+        vim.notify("Failed to cleanup temp file: " .. tostring(err), vim.log.levels.WARN)
+      end
+    end
+
+    -- Delete temporary file when buffer is closed
     vim.api.nvim_buf_attach(bufnr, false, {
-      on_detach = function()
-        pcall(vim.fn.delete, temp_file)
-      end,
+      on_detach = cleanup_temp_file,
+    })
+
+    -- Additional: delete file when exiting Neovim
+    local augroup = vim.api.nvim_create_augroup("TransferDiffCleanup_" .. bufnr, { clear = true })
+    vim.api.nvim_create_autocmd("VimLeavePre", {
+      group = augroup,
+      callback = cleanup_temp_file,
+      once = true,
     })
   end)
 end
