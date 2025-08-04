@@ -663,9 +663,10 @@ function M.show_dir_diff(dir)
   })
 end
 
--- Function to download remote file to tmp for diff
--- @param remote_path string
--- @param callback function
+-- Download remote file to temporary file for diff comparison
+-- @param remote_path string The remote file path in rsync format (user@host:/path/to/file)
+-- @param callback function Callback function that receives the temporary file path
+-- @return void
 function M.download_for_diff(remote_path, callback)
   local temp_file = vim.fn.tempname()
 
@@ -692,6 +693,8 @@ function M.download_for_diff(remote_path, callback)
       vim.list_extend(stderr, data)
     end,
     on_exit = function(_, code, _)
+      local error_output = table.concat(stderr, "\n")
+
       if code == 0 then
         vim.notify("File downloaded for diff", vim.log.levels.INFO, {
           id = notification_id,
@@ -702,22 +705,34 @@ function M.download_for_diff(remote_path, callback)
         })
         callback(temp_file)
       else
-        vim.notify("Error downloading file for diff: " .. table.concat(stderr, "\n"), vim.log.levels.ERROR, {
-          id = notification_id,
-          title = "Transfer.nvim",
-          timeout = 4000,
-          replace = notification_id,
-          icon = " ",
-        })
-        -- Delete tmp file if error
+        -- Check if file doesn't exist
+        if string.find(error_output, "No such file or directory") or string.find(error_output, "link_stat.*failed") then
+          vim.notify("Remote file does not exist: " .. remote_path, vim.log.levels.WARN, {
+            id = notification_id,
+            title = "Transfer.nvim",
+            timeout = 4000,
+            replace = notification_id,
+            icon = " ",
+          })
+        else
+          vim.notify("Error downloading file for diff: " .. error_output, vim.log.levels.ERROR, {
+            id = notification_id,
+            title = "Transfer.nvim",
+            timeout = 4000,
+            replace = notification_id,
+            icon = " ",
+          })
+        end
+        -- Delete temporary file in case of error
         pcall(vim.fn.delete, temp_file)
       end
     end,
   })
 end
 
--- Function to download remote file to temporary file for diff comparison
--- @param local_path string
+-- Function to compare local and remote file
+-- @param local_path string|nil The local file path (defaults to current file)
+-- @return void
 function M.diff_file(local_path)
   if local_path == nil then
     local_path = vim.fn.expand("%:p")
