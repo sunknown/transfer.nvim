@@ -27,6 +27,7 @@ Suitable for small projects where there is no need for CI/CD.
 
 - `TransferInit` - create a config file and open it. Just edit if it already exists.
 - `DiffRemote` - open a diff view with the remote file.
+- `TransferDiff` - open a diff view with the remote file (rsync).
 - `TransferRepeat` - repeat the last transfer command (except TransferInit, DiffRemote).
 - `TransferUpload [path]` - upload the given file or directory.
 - `TransferDownload [path]` - download the given file or directory.
@@ -129,6 +130,12 @@ require("which-key").add({
     "<leader>uf",
     "<cmd>DiffRemote<cr>",
     desc = "Diff file with remote server (scp)",
+    icon = { color = "green", icon = "" },
+  },
+  {
+    "<leader>uu",
+    "<cmd>TransferDiff<cr>",
+    desc = "Diff file with remote server (rsync)",
     icon = { color = "green", icon = "" },
   },
   {
