@@ -207,6 +207,20 @@ function M.upload_file(local_path)
   else
     local_path = vim.fn.fnamemodify(local_path, ":p")
   end
+
+  local use_rsync = config.options.use_rsync_for_files
+
+  if use_rsync then
+    M.upload_file_rsync(local_path)
+  else
+    M.upload_file_scp(local_path)
+  end
+end
+
+-- upload the given file using scp
+-- @param local_path string
+-- @return void
+function M.upload_file_scp(local_path)
   local remote_path = M.remote_scp_path(local_path)
   if remote_path == nil then
     return
@@ -253,24 +267,21 @@ function M.upload_file(local_path)
   })
 end
 
--- Replace local file with remote copy
--- @param local_path string|nil
-function M.download_file(local_path)
-  if local_path == nil then
-    local_path = vim.fn.expand("%:p")
-  else
-    local_path = vim.fn.fnamemodify(local_path, ":p")
-  end
-  local remote_path = M.remote_scp_path(local_path)
+-- upload the given file using rsync with optional permissions
+-- @param local_path string
+-- @return void
+function M.upload_file_rsync(local_path)
+  local remote_path, deployment = M.remote_rsync_path(local_path)
   if remote_path == nil then
     return
   end
-  local local_short = vim.fn.fnamemodify(local_path, ":~"):gsub(".*/", "")
 
+  local local_short = vim.fn.fnamemodify(local_path, ":~"):gsub(".*/", "")
+  local stderr = {}
   local notification = vim.notify(local_short, vim.log.levels.INFO, {
-    title = "Downloading file...",
+    title = "Uploading file...",
     timeout = 0,
-    icon = "󱕉 ",
+    icon = "󱕌 ",
   })
   local notification_id
   if type(notification) == "table" and notification.id then
@@ -278,8 +289,30 @@ function M.download_file(local_path)
   elseif type(notification) == "number" then
     notification_id = notification
   end
-  local stderr = {}
-  vim.fn.jobstart({ "scp", remote_path, local_path }, {
+
+  -- Build rsync command
+  local cmd = { "rsync", "-avz" }
+
+  -- Set permissions
+  local file_permissions = "664" -- default permissions for files
+  local dir_permissions = "775" -- default permissions for directory
+
+  if deployment then
+    if deployment.filePermissions then
+      file_permissions = deployment.filePermissions
+    end
+    if deployment.dirPermissions then
+      dir_permissions = deployment.dirPermissions
+    end
+  end
+
+  table.insert(cmd, "--chmod=F" .. file_permissions .. ",D" .. dir_permissions)
+
+  -- Add the local and remote paths
+  table.insert(cmd, local_path)
+  table.insert(cmd, remote_path)
+
+  vim.fn.jobstart(cmd, {
     on_stderr = function(_, data, _)
       if data == nil or #data == 0 then
         return
@@ -290,23 +323,145 @@ function M.download_file(local_path)
       if code == 0 then
         vim.notify(remote_path, vim.log.levels.INFO, {
           id = notification_id,
-          title = "Remote file downloaded",
+          title = "File uploaded",
           icon = "",
-          timeout = 1000,
+          timeout = 3000,
           replace = notification_id,
         })
-        -- reload buffer for the downloaded file
-        local bufnr = vim.fn.bufnr(local_path)
-        if bufnr ~= -1 then
-          reload_buffer(bufnr)
+      else
+        vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
+          id = notification_id,
+          title = "Error uploading file",
+          timeout = 4000,
+          replace = notification_id,
+          icon = " ",
+        })
+      end
+    end,
+  })
+end
+
+-- Replace local file with remote copy
+-- @param local_path string|nil
+function M.download_file(local_path)
+  if local_path == nil then
+    local_path = vim.fn.expand("%:p")
+  end
+  local_path = vim.fn.fnamemodify(local_path, ":p")
+
+  local use_rsync = config.options.use_rsync_for_files
+
+  if use_rsync then
+    M.download_file_rsync(local_path)
+  else
+    local remote_path = M.remote_scp_path(local_path)
+    if remote_path == nil then
+      return
+    end
+
+    local local_short = vim.fn.fnamemodify(local_path, ":~"):gsub(".*/", "")
+    local stderr = {}
+    local notification = vim.notify(local_short, vim.log.levels.INFO, {
+      title = "Downloading file...",
+      timeout = 0,
+      icon = "󱅞 ",
+    })
+    local notification_id
+    if type(notification) == "table" and notification.id then
+      notification_id = notification.id
+    elseif type(notification) == "number" then
+      notification_id = notification
+    end
+
+    vim.fn.jobstart({ "scp", remote_path, local_path }, {
+      on_stderr = function(_, data, _)
+        if data == nil or #data == 0 then
+          return
+        end
+        vim.list_extend(stderr, data)
+      end,
+      on_exit = function(_, code, _)
+        if code == 0 then
+          vim.notify(local_path, vim.log.levels.INFO, {
+            id = notification_id,
+            title = "File downloaded",
+            icon = "",
+            timeout = 3000,
+            replace = notification_id,
+          })
+          if local_path == vim.fn.expand("%:p") then
+            vim.cmd("e")
+          end
+        else
+          vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
+            id = notification_id,
+            title = "Error downloading file",
+            timeout = 4000,
+            replace = notification_id,
+            icon = " ",
+          })
+        end
+      end,
+    })
+  end
+end
+
+function M.download_file_rsync(local_path)
+  if local_path == nil then
+    local_path = vim.fn.expand("%:p")
+  end
+  local_path = vim.fn.fnamemodify(local_path, ":p")
+
+  local remote_path, deployment = M.remote_rsync_path(local_path)
+  if remote_path == nil then
+    return
+  end
+
+  local local_short = vim.fn.fnamemodify(local_path, ":~"):gsub(".*/", "")
+  local stderr = {}
+  local notification = vim.notify(local_short, vim.log.levels.INFO, {
+    title = "Downloading file...",
+    timeout = 0,
+    icon = "󱅞 ",
+  })
+  local notification_id
+  if type(notification) == "table" and notification.id then
+    notification_id = notification.id
+  elseif type(notification) == "number" then
+    notification_id = notification
+  end
+
+  -- Build rsync command for download
+  local cmd = { "rsync", "-avz" }
+  table.insert(cmd, remote_path)
+  table.insert(cmd, local_path)
+
+  vim.fn.jobstart(cmd, {
+    on_stderr = function(_, data, _)
+      if data == nil or #data == 0 then
+        return
+      end
+      vim.list_extend(stderr, data)
+    end,
+    on_exit = function(_, code, _)
+      if code == 0 then
+        vim.notify(local_path, vim.log.levels.INFO, {
+          id = notification_id,
+          title = "File downloaded",
+          icon = "",
+          timeout = 3000,
+          replace = notification_id,
+        })
+        if local_path == vim.fn.expand("%:p") then
+          vim.cmd("e")
         end
       else
         vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
           id = notification_id,
           title = "Error downloading file",
-          icon = " ",
           timeout = 4000,
           replace = notification_id,
+          icon = " ",
         })
       end
     end,
