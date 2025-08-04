@@ -12,6 +12,8 @@ return {
         ["remote"] = "/var/www/example.com",
       },
     },
+    filePermissions = "664", -- optional: set file permissions for uploaded files
+    dirPersmissions = "775", -- optional: set directory permissions for uploaded directories
     -- excludedPaths = {
     --   "src", -- local path relative to project root
     -- },
@@ -41,6 +43,7 @@ return {
     "--exclude",
     ".git",
   },
+  use_rsync_for_files = true, -- whether to use rsync instead of scp for file transfers
 }
 
 M.options = {}

@@ -4,9 +4,9 @@
 
 Transfer.nvim is a lightweight Neovim plugin that lets you manually **upload, download, and diff** files or directories between your local workspace and remote servers via **rsync** and **OpenSSH**.
 
-It supports mapping multiple local and remote paths, excluded path, and more. 
+It supports mapping multiple local and remote paths, excluded path, and more.
 
-Ideal for developers who prefer precise, command-driven deployment workflows. 
+Ideal for developers who prefer precise, command-driven deployment workflows.
 
 Suitable for small projects where there is no need for CI/CD.
 
@@ -27,6 +27,7 @@ Suitable for small projects where there is no need for CI/CD.
 
 - `TransferInit` - create a config file and open it. Just edit if it already exists.
 - `DiffRemote` - open a diff view with the remote file.
+- `TransferDiff` - open a diff view with the remote file (rsync).
 - `TransferRepeat` - repeat the last transfer command (except TransferInit, DiffRemote).
 - `TransferUpload [path]` - upload the given file or directory.
 - `TransferDownload [path]` - download the given file or directory.
@@ -132,6 +133,12 @@ require("which-key").add({
     icon = { color = "green", icon = "" },
   },
   {
+    "<leader>uu",
+    "<cmd>TransferDiff<cr>",
+    desc = "Diff file with remote server (rsync)",
+    icon = { color = "green", icon = "" },
+  },
+  {
     "<leader>ui",
     "<cmd>TransferInit<cr>",
     desc = "Init/Edit Deployment config",
@@ -166,6 +173,26 @@ require("which-key").add({
 
 [Look at defaults](https://github.com/coffebar/transfer.nvim/blob/main/lua/transfer/config.lua) and overwrite anything in your opts.
 
+You can also use rsync instead of scp for file transfers by setting `use_rsync_for_files = true` in your config. When using rsync, you can specify file permissions in your deployment configuration:
+
+```lua
+-- .nvim/deployment.lua
+return {
+  ["example_name"] = {
+    host = "myhost",
+    username = "web", -- optional
+    mappings = {
+      {
+        ["local"] = "live", -- path relative to project root
+        ["remote"] = "/var/www/example.com", -- absolute path or relative to user home
+      },
+    },
+    filePermissions = "644", -- optional: set file permissions for uploaded files
+    dirPersmissions = "775", -- optional: set directory permissions for uploaded directories
+  },
+}
+```
+
 ## Demo video
 
 https://github.com/coffebar/transfer.nvim/assets/3100053/32cb642a-9040-47dd-a661-4058869c79f1
@@ -187,4 +214,3 @@ Follow the Conventional Commits specification for commit naming.
 
 - [KenN7/vim-arsync](https://github.com/KenN7/vim-arsync)
 - [OscarCreator/rsync.nvim](https://github.com/OscarCreator/rsync.nvim)
-
