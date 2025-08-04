@@ -1,24 +1,20 @@
-# transfer.nvim
+Original plugin:
 
-## Description
+- [coffebar/transfer](https://github.com/coffebar/transfer.nvim)
 
-Transfer.nvim is a lightweight Neovim plugin that lets you manually **upload, download, and diff** files or directories between your local workspace and remote servers via **rsync** and **OpenSSH**.
-
-It supports mapping multiple local and remote paths, excluded path, and more.
-
-Ideal for developers who prefer precise, command-driven deployment workflows.
-
-Suitable for small projects where there is no need for CI/CD.
+# Changes from original
 
 ## Install
 
 ### Lazy.nvim
 
+Added "TransferDiff" option:
+
 ```lua
 {
   "coffebar/transfer.nvim",
   lazy = true,
-  cmd = { "TransferInit", "DiffRemote", "TransferUpload", "TransferDownload", "TransferDirDiff", "TransferRepeat" },
+  cmd = { "TransferInit", "TransferDiff", "TransferUpload", "TransferDownload", "TransferDirDiff", "TransferRepeat" },
   opts = {},
 },
 ```
@@ -26,7 +22,7 @@ Suitable for small projects where there is no need for CI/CD.
 ## Commands
 
 - `TransferInit` - create a config file and open it. Just edit if it already exists.
-- `DiffRemote` - open a diff view with the remote file.
+- `DiffRemote` - open a diff view with the remote file (scp).
 - `TransferDiff` - open a diff view with the remote file (rsync).
 - `TransferRepeat` - repeat the last transfer command (except TransferInit, DiffRemote).
 - `TransferUpload [path]` - upload the given file or directory.
@@ -34,6 +30,8 @@ Suitable for small projects where there is no need for CI/CD.
 - `TransferDirDiff [path]` - diff the directory with the remote one and display the changed files in the quickfix.
 
 ## Deployment config example
+
+Added "filePermissions", "dirPersmissions" for updating permissions after file\folder upload with rsync
 
 ```lua
 -- .nvim/deployment.lua
@@ -55,67 +53,15 @@ return {
       "live/src/", -- local path relative to project root
       "test/src/",
     },
-  },
-}
-```
-
-Example `~/.ssh/config` for passwordless auth:
-
-```ssh
-Host myhost
-  HostName 127.1.177.12
-  User web
-  IdentityFile ~/.ssh/myhost_key
-
-Host server2
-  ...
-```
-
-## Suggested mappings
-
-### Neo-tree
-
-```lua
-{
-  window = {
-    mappings = {
-      -- upload (sync files)
-      uu = {
-        function(state)
-          vim.cmd("TransferUpload " .. state.tree:get_node().path)
-        end,
-        desc = "upload file or directory",
-        nowait = true,
-      },
-      -- download (sync files)
-      ud = {
-        function(state)
-          vim.cmd("TransferDownload" .. state.tree:get_node().path)
-        end,
-        desc = "download file or directory",
-        nowait = true,
-      },
-      -- diff directory with remote
-      uf = {
-        function(state)
-          local node = state.tree:get_node()
-          local context_dir = node.path
-          if node.type ~= "directory" then
-            -- if not a directory
-            -- one level up
-            context_dir = context_dir:gsub("/[^/]*$", "")
-          end
-          vim.cmd("TransferDirDiff " .. context_dir)
-          vim.cmd("Neotree close")
-        end,
-        desc = "diff with remote",
-      },
-    },
+    filePermissions = "664",
+    dirPersmissions = "775",
   },
 }
 ```
 
 ### Which-key
+
+Example with "TransferDiff" option
 
 ```lua
 require("which-key").add({
@@ -159,21 +105,11 @@ require("which-key").add({
 })
 ```
 
-## Recommended to use with
-
-- [rcarriga/nvim-notify](https://github.com/rcarriga/nvim-notify) - animated popup notifications.
-- [nvim-neo-tree/neo-tree.nvim](https://github.com/nvim-neo-tree/neo-tree.nvim) - file explorer.
-- [coffebar/neovim-project](https://github.com/coffebar/neovim-project) - project management.
-
-## Migration from JetBrains config
-
-[Check this repo](https://github.com/coffebar/jetbrains-deployment-config-to-lua) for converting you config from JetBrains projects.
-
 ## Config
 
 [Look at defaults](https://github.com/coffebar/transfer.nvim/blob/main/lua/transfer/config.lua) and overwrite anything in your opts.
 
-You can also use rsync instead of scp for file transfers by setting `use_rsync_for_files = true` in your config. When using rsync, you can specify file permissions in your deployment configuration:
+You can use rsync instead of scp for file transfers by setting `use_rsync_for_files = true` in your config (set by default). When using rsync, you can specify file permissions in your deployment configuration:
 
 ```lua
 -- .nvim/deployment.lua
@@ -187,30 +123,8 @@ return {
         ["remote"] = "/var/www/example.com", -- absolute path or relative to user home
       },
     },
-    filePermissions = "644", -- optional: set file permissions for uploaded files
-    dirPersmissions = "775", -- optional: set directory permissions for uploaded directories
+    filePermissions = "664", -- set file permissions for uploaded files
+    dirPersmissions = "775", -- set directory permissions for uploaded directories
   },
 }
 ```
-
-## Demo video
-
-https://github.com/coffebar/transfer.nvim/assets/3100053/32cb642a-9040-47dd-a661-4058869c79f1
-
-## Not tested or not working:
-
-- Windows paths;
-- SSH Auth that is not passwordless.
-
-## Contributing
-
-Feel free to contribute, open issues, and submit pull requests to help us improve transfer.nvim.
-
-Run tests with `make test`.
-
-Follow the Conventional Commits specification for commit naming.
-
-## Related projects
-
-- [KenN7/vim-arsync](https://github.com/KenN7/vim-arsync)
-- [OscarCreator/rsync.nvim](https://github.com/OscarCreator/rsync.nvim)
