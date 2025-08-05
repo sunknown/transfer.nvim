@@ -13,7 +13,7 @@ return {
       },
     },
     filePermissions = "664", -- optional: set file permissions for uploaded files
-    dirPersmissions = "775", -- optional: set directory permissions for uploaded directories
+    dirPermissions = "775", -- optional: set directory permissions for uploaded directories
     -- excludedPaths = {
     --   "src", -- local path relative to project root
     -- },
