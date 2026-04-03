@@ -861,4 +861,51 @@ function M.diff_file(local_path)
   end)
 end
 
+-- Show which changed git files would be uploaded by TransferChangedFiles
+-- @return void
+function M.show_changed_files()
+  local cwd = vim.loop.cwd()
+  local files = vim.fn.systemlist({ "git", "-C", cwd, "diff", "HEAD", "--name-only", "--diff-filter=ACMR" })
+
+  if vim.v.shell_error ~= 0 then
+    vim.notify("git error or not in a repository", vim.log.levels.ERROR, {
+      title = "TransferShowChanged",
+      timeout = 4000,
+    })
+    return
+  end
+
+  files = vim.tbl_filter(function(f) return f ~= "" end, files)
+
+  if #files == 0 then
+    vim.notify("No changed files", vim.log.levels.INFO, {
+      title = "TransferShowChanged",
+      timeout = 3000,
+    })
+    return
+  end
+
+  local would_upload = {}
+  local would_skip = {}
+
+  for _, file in ipairs(files) do
+    local local_path = cwd .. "/" .. file
+    local remote_path, _ = M.remote_rsync_path(local_path, true)
+    if remote_path then
+      table.insert(would_upload, "  " .. file .. " -> " .. remote_path)
+    else
+      table.insert(would_skip, "  " .. file .. " (not mapped)")
+    end
+  end
+
+  local lines = {}
+  table.insert(lines, "Would upload (" .. #would_upload .. "):")
+  vim.list_extend(lines, would_upload)
+  table.insert(lines, "Would skip (" .. #would_skip .. "):")
+  vim.list_extend(lines, would_skip)
+
+  vim.fn.setqflist({}, "r", { title = "TransferShowChanged", lines = lines })
+  vim.api.nvim_command("copen")
+end
+
 return M

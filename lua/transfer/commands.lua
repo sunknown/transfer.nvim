@@ -134,6 +134,11 @@ M.setup = function()
     M.recent_command = "TransferDirDiff " .. path
     require("transfer.transfer").show_dir_diff(path)
   end, { nargs = "?" })
+
+  -- TransferShowChanged - preview which changed git files would be uploaded
+  vim.api.nvim_create_user_command("TransferShowChanged", function()
+    require("transfer.transfer").show_changed_files()
+  end, { nargs = 0 })
 end
 
 return M
