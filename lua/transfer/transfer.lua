@@ -1084,7 +1084,9 @@ function M.upload_changed_files(mode)
       }
     )
     vim.fn.setqflist({}, "r", { title = "TransferChangedFiles", lines = lines })
-    vim.api.nvim_command("copen")
+    if #failed > 0 then
+      vim.api.nvim_command("copen")
+    end
   end
 
   for _, item in ipairs(to_upload) do
