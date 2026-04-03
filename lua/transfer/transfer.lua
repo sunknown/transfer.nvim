@@ -267,6 +267,48 @@ function M.upload_file_scp(local_path)
   })
 end
 
+-- create remote directory via SSH before uploading
+-- @param deployment table
+-- @param remote_dir string
+-- @param notification_id number|nil
+-- @param callback function
+-- @return void
+local function ensure_remote_dir(deployment, remote_dir, notification_id, callback)
+  local host = deployment.host
+  if deployment.username then
+    host = deployment.username .. "@" .. host
+  end
+
+  local cmd = { "ssh" }
+  if deployment.port then
+    vim.list_extend(cmd, { "-p", tostring(deployment.port) })
+  end
+  vim.list_extend(cmd, { host, "mkdir", "-p", remote_dir })
+
+  local stderr = {}
+  vim.fn.jobstart(cmd, {
+    on_stderr = function(_, data, _)
+      if data == nil or #data == 0 then
+        return
+      end
+      vim.list_extend(stderr, data)
+    end,
+    on_exit = function(_, code, _)
+      if code == 0 then
+        callback()
+      else
+        vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
+          id = notification_id,
+          title = "Error creating remote directory",
+          timeout = 4000,
+          replace = notification_id,
+          icon = " ",
+        })
+      end
+    end,
+  })
+end
+
 -- upload the given file using rsync with optional permissions
 -- @param local_path string
 -- @return void
@@ -290,9 +332,6 @@ function M.upload_file_rsync(local_path)
     notification_id = notification
   end
 
-  -- Build rsync command
-  local cmd = { "rsync", "-avz" }
-
   -- Set permissions
   local file_permissions = "664" -- default permissions for files
   local dir_permissions = "775" -- default permissions for directory
@@ -306,39 +345,50 @@ function M.upload_file_rsync(local_path)
     end
   end
 
-  table.insert(cmd, "--chmod=F" .. file_permissions .. ",D" .. dir_permissions)
+  local function do_upload()
+    local cmd = { "rsync", "-avz" }
+    table.insert(cmd, "--chmod=F" .. file_permissions .. ",D" .. dir_permissions)
+    table.insert(cmd, local_path)
+    table.insert(cmd, remote_path)
 
-  -- Add the local and remote paths
-  table.insert(cmd, local_path)
-  table.insert(cmd, remote_path)
+    vim.fn.jobstart(cmd, {
+      on_stderr = function(_, data, _)
+        if data == nil or #data == 0 then
+          return
+        end
+        vim.list_extend(stderr, data)
+      end,
+      on_exit = function(_, code, _)
+        if code == 0 then
+          vim.notify(remote_path, vim.log.levels.INFO, {
+            id = notification_id,
+            title = "File uploaded",
+            icon = "",
+            timeout = 3000,
+            replace = notification_id,
+          })
+        else
+          vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
+            id = notification_id,
+            title = "Error uploading file",
+            timeout = 4000,
+            replace = notification_id,
+            icon = " ",
+          })
+        end
+      end,
+    })
+  end
 
-  vim.fn.jobstart(cmd, {
-    on_stderr = function(_, data, _)
-      if data == nil or #data == 0 then
-        return
-      end
-      vim.list_extend(stderr, data)
-    end,
-    on_exit = function(_, code, _)
-      if code == 0 then
-        vim.notify(remote_path, vim.log.levels.INFO, {
-          id = notification_id,
-          title = "File uploaded",
-          icon = "",
-          timeout = 3000,
-          replace = notification_id,
-        })
-      else
-        vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
-          id = notification_id,
-          title = "Error uploading file",
-          timeout = 4000,
-          replace = notification_id,
-          icon = " ",
-        })
-      end
-    end,
-  })
+  -- rsync path format: "user@host:/path/to/file"
+  local file_path = remote_path:match("^[^:]+:(.+)$")
+  local remote_dir = file_path and vim.fn.fnamemodify(file_path, ":h")
+
+  if remote_dir and remote_dir ~= "" and remote_dir ~= "." and deployment then
+    ensure_remote_dir(deployment, remote_dir, notification_id, do_upload)
+  else
+    do_upload()
+  end
 end
 
 -- Replace local file with remote copy
