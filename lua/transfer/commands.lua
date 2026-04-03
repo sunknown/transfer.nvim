@@ -145,9 +145,20 @@ M.setup = function()
     require("transfer.transfer").show_changed_branch_files()
   end, { nargs = 0 })
 
-  -- TransferChangedFiles - upload all uncommitted changed files
+  -- TransferChangedFiles - upload changed git files (prompts for scope)
   vim.api.nvim_create_user_command("TransferChangedFiles", function()
-    require("transfer.transfer").upload_changed_files()
+    vim.ui.select(
+      { "Upload uncommitted files", "Upload all branch changes" },
+      { prompt = "TransferChangedFiles: select scope" },
+      function(choice)
+        if choice == nil then return end
+        if choice == "Upload uncommitted files" then
+          require("transfer.transfer").upload_changed_files("uncommitted")
+        else
+          require("transfer.transfer").upload_changed_files("branch")
+        end
+      end
+    )
   end, { nargs = 0 })
 end
 

@@ -993,21 +993,20 @@ function M.show_changed_branch_files()
   vim.api.nvim_command("copen")
 end
 
--- Upload all uncommitted changed files to the remote server
+-- Upload changed files to the remote server
+-- @param mode string  "uncommitted" | "branch"
 -- @return void
-function M.upload_changed_files()
+function M.upload_changed_files(mode)
   local cwd = vim.loop.cwd()
-  local files = vim.fn.systemlist({ "git", "-C", cwd, "diff", "HEAD", "--name-only", "--diff-filter=ACMR" })
+  local files, err = get_changed_files(mode, cwd)
 
-  if vim.v.shell_error ~= 0 then
-    vim.notify("git error or not in a repository", vim.log.levels.ERROR, {
+  if files == nil then
+    vim.notify(err, vim.log.levels.ERROR, {
       title = "TransferChangedFiles",
       timeout = 4000,
     })
     return
   end
-
-  files = vim.tbl_filter(function(f) return f ~= "" end, files)
 
   if #files == 0 then
     vim.notify("No changed files", vim.log.levels.INFO, {
