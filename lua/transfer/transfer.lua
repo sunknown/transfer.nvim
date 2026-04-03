@@ -908,4 +908,120 @@ function M.show_changed_files()
   vim.api.nvim_command("copen")
 end
 
+-- Upload all uncommitted changed files to the remote server
+-- @return void
+function M.upload_changed_files()
+  local cwd = vim.loop.cwd()
+  local files = vim.fn.systemlist({ "git", "-C", cwd, "diff", "HEAD", "--name-only", "--diff-filter=ACMR" })
+
+  if vim.v.shell_error ~= 0 then
+    vim.notify("git error or not in a repository", vim.log.levels.ERROR, {
+      title = "TransferChangedFiles",
+      timeout = 4000,
+    })
+    return
+  end
+
+  files = vim.tbl_filter(function(f) return f ~= "" end, files)
+
+  if #files == 0 then
+    vim.notify("No changed files", vim.log.levels.INFO, {
+      title = "TransferChangedFiles",
+      timeout = 3000,
+    })
+    return
+  end
+
+  -- Resolve remote paths silently, split into to_upload / skipped
+  local to_upload = {} -- list of { local_path, remote_path, deployment }
+  local skipped = {}   -- list of relative file paths
+
+  for _, file in ipairs(files) do
+    local local_path = cwd .. "/" .. file
+    local remote_path, deployment = M.remote_rsync_path(local_path, true)
+    if remote_path then
+      table.insert(to_upload, { local_path, remote_path, deployment })
+    else
+      table.insert(skipped, file)
+    end
+  end
+
+  if #to_upload == 0 then
+    vim.notify("No changed files matched deployment mappings", vim.log.levels.WARN, {
+      title = "TransferChangedFiles",
+      timeout = 4000,
+    })
+    return
+  end
+
+  local uploaded = {} -- list of "rel/path -> remote:path"
+  local failed = {}   -- list of "rel/path"
+  local pending = #to_upload
+
+  local function check_done()
+    pending = pending - 1
+    if pending > 0 then return end
+
+    local lines = {}
+    table.insert(lines, "Uploaded (" .. #uploaded .. "):")
+    for _, line in ipairs(uploaded) do
+      table.insert(lines, "  " .. line)
+    end
+    table.insert(lines, "Failed (" .. #failed .. "):")
+    for _, line in ipairs(failed) do
+      table.insert(lines, "  " .. line)
+    end
+    table.insert(lines, "Skipped (" .. #skipped .. "):")
+    for _, line in ipairs(skipped) do
+      table.insert(lines, "  " .. line .. " (not mapped)")
+    end
+
+    vim.fn.setqflist({}, "r", { title = "TransferChangedFiles", lines = lines })
+    vim.api.nvim_command("copen")
+  end
+
+  for _, item in ipairs(to_upload) do
+    local local_path, remote_path, deployment = item[1], item[2], item[3]
+    local rel_path = local_path:gsub("^" .. cwd .. "/", "")
+
+    local file_permissions = "664"
+    local dir_permissions = "775"
+    if deployment then
+      if deployment.filePermissions then file_permissions = deployment.filePermissions end
+      if deployment.dirPermissions then dir_permissions = deployment.dirPermissions end
+    end
+
+    local function do_rsync()
+      local cmd = {
+        "rsync", "-avz",
+        "--chmod=F" .. file_permissions .. ",D" .. dir_permissions,
+        local_path,
+        remote_path,
+      }
+      vim.fn.jobstart(cmd, {
+        on_exit = function(_, code, _)
+          if code == 0 then
+            table.insert(uploaded, rel_path .. " -> " .. remote_path)
+          else
+            table.insert(failed, rel_path)
+          end
+          check_done()
+        end,
+      })
+    end
+
+    local file_path_on_remote = remote_path:match("^[^:]+:(.+)$")
+    local remote_dir = file_path_on_remote and vim.fn.fnamemodify(file_path_on_remote, ":h")
+
+    if remote_dir and remote_dir ~= "" and remote_dir ~= "." and deployment then
+      ensure_remote_dir(deployment, remote_dir, nil, do_rsync, function()
+        table.insert(failed, rel_path .. " (mkdir failed)")
+        check_done()
+      end)
+    else
+      do_rsync()
+    end
+  end
+end
+
 return M

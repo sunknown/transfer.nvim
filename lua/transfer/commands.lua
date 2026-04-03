@@ -139,6 +139,11 @@ M.setup = function()
   vim.api.nvim_create_user_command("TransferShowChanged", function()
     require("transfer.transfer").show_changed_files()
   end, { nargs = 0 })
+
+  -- TransferChangedFiles - upload all uncommitted changed files
+  vim.api.nvim_create_user_command("TransferChangedFiles", function()
+    require("transfer.transfer").upload_changed_files()
+  end, { nargs = 0 })
 end
 
 return M
