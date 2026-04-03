@@ -902,21 +902,19 @@ local function get_changed_files(mode, cwd)
   return nil, "unknown mode: " .. tostring(mode)
 end
 
--- Show which changed git files would be uploaded by TransferChangedFiles
+-- Show which uncommitted changed files would be uploaded by TransferChangedFiles
 -- @return void
 function M.show_changed_files()
   local cwd = vim.loop.cwd()
-  local files = vim.fn.systemlist({ "git", "-C", cwd, "diff", "HEAD", "--name-only", "--diff-filter=ACMR" })
+  local files, err = get_changed_files("uncommitted", cwd)
 
-  if vim.v.shell_error ~= 0 then
-    vim.notify("git error or not in a repository", vim.log.levels.ERROR, {
+  if files == nil then
+    vim.notify(err, vim.log.levels.ERROR, {
       title = "TransferShowChanged",
       timeout = 4000,
     })
     return
   end
-
-  files = vim.tbl_filter(function(f) return f ~= "" end, files)
 
   if #files == 0 then
     vim.notify("No changed files", vim.log.levels.INFO, {
