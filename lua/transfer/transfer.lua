@@ -99,20 +99,22 @@ end
 
 -- get the remote path for scp
 -- @param local_path string
--- @return string
-function M.remote_scp_path(local_path)
+-- @param silent boolean|nil  when true, suppresses vim.notify calls
+function M.remote_scp_path(local_path, silent)
   local cwd = vim.loop.cwd()
   local config_file = cwd .. "/.nvim/deployment.lua"
   if vim.fn.filereadable(config_file) ~= 1 then
-    vim.notify(
-      "No deployment config found in \n" .. config_file .. "\n\nRun `:TransferInit` to create it",
-      vim.log.levels.WARN,
-      {
-        title = "Transfer.nvim",
-        icon = " ",
-        timeout = 4000,
-      }
-    )
+    if not silent then
+      vim.notify(
+        "No deployment config found in \n" .. config_file .. "\n\nRun `:TransferInit` to create it",
+        vim.log.levels.WARN,
+        {
+          title = "Transfer.nvim",
+          icon = " ",
+          timeout = 4000,
+        }
+      )
+    end
     return nil
   end
   local deployment_conf = dofile(config_file)
@@ -175,19 +177,22 @@ function M.remote_scp_path(local_path)
   if skip_reason == nil then
     skip_reason = "File '" .. local_path .. "'\nis not mapped in deployment config"
   end
-  vim.notify(skip_reason, vim.log.levels.ERROR, {
-    title = "No mappings found",
-    icon = " ",
-    timeout = 4000,
-  })
+  if not silent then
+    vim.notify(skip_reason, vim.log.levels.ERROR, {
+      title = "No mappings found",
+      icon = " ",
+      timeout = 4000,
+    })
+  end
   return nil
 end
 
 -- get the remote path for rsync
 -- @param local_path string
+-- @param silent boolean|nil  when true, suppresses vim.notify calls
 -- @return string
-function M.remote_rsync_path(local_path)
-  local remote_path, deployment = M.remote_scp_path(local_path)
+function M.remote_rsync_path(local_path, silent)
+  local remote_path, deployment = M.remote_scp_path(local_path, silent)
   if remote_path == nil then
     return
   end

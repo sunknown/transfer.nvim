@@ -173,4 +173,36 @@ return {
 
     vim.fn.delete(".nvim/deployment.lua")
   end)
+
+  it("silent mode suppresses notify for unmapped file", function()
+    transfer.setup({
+      config_template = [[
+return {
+  ["server4"] = {
+    host = "server4",
+    mappings = {
+      {
+        ["local"] = "mapped-dir",
+        ["remote"] = "/var/www/mapped",
+      },
+    },
+  },
+}
+]],
+    })
+
+    vim.cmd("TransferInit")
+    local cwd = vim.loop.cwd()
+
+    local notified = false
+    local orig_notify = vim.notify
+    vim.notify = function(...) notified = true end
+
+    local path, _ = transfer.remote_rsync_path(cwd .. "/unmapped-file.txt", true)
+    vim.notify = orig_notify
+
+    assert.equals(nil, path)
+    assert.equals(false, notified)
+    vim.fn.delete(".nvim/deployment.lua")
+  end)
 end)
