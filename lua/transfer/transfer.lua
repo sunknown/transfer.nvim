@@ -958,6 +958,18 @@ function M.upload_changed_files()
   local failed = {}   -- list of "rel/path"
   local pending = #to_upload
 
+  local notification = vim.notify("Uploading " .. #to_upload .. " file(s)...", vim.log.levels.INFO, {
+    title = "TransferChangedFiles",
+    timeout = 0,
+    icon = "󱕌 ",
+  })
+  local notification_id
+  if type(notification) == "table" and notification.id then
+    notification_id = notification.id
+  elseif type(notification) == "number" then
+    notification_id = notification
+  end
+
   local function check_done()
     pending = pending - 1
     if pending > 0 then return end
@@ -976,6 +988,17 @@ function M.upload_changed_files()
       table.insert(lines, "  " .. line .. " (not mapped)")
     end
 
+    vim.notify(
+      "Uploaded: " .. #uploaded .. "  Failed: " .. #failed .. "  Skipped: " .. #skipped,
+      #failed > 0 and vim.log.levels.WARN or vim.log.levels.INFO,
+      {
+        id = notification_id,
+        title = "TransferChangedFiles",
+        timeout = 3000,
+        replace = notification_id,
+        icon = "",
+      }
+    )
     vim.fn.setqflist({}, "r", { title = "TransferChangedFiles", lines = lines })
     vim.api.nvim_command("copen")
   end
