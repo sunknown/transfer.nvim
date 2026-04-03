@@ -276,9 +276,10 @@ end
 -- @param deployment table
 -- @param remote_dir string
 -- @param notification_id number|nil
--- @param callback function
+-- @param callback function  called on success
+-- @param on_error function|nil  called on failure (default: show error notification)
 -- @return void
-local function ensure_remote_dir(deployment, remote_dir, notification_id, callback)
+local function ensure_remote_dir(deployment, remote_dir, notification_id, callback, on_error)
   local host = deployment.host
   if deployment.username then
     host = deployment.username .. "@" .. host
@@ -302,13 +303,17 @@ local function ensure_remote_dir(deployment, remote_dir, notification_id, callba
       if code == 0 then
         callback()
       else
-        vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
-          id = notification_id,
-          title = "Error creating remote directory",
-          timeout = 4000,
-          replace = notification_id,
-          icon = " ",
-        })
+        if on_error then
+          on_error()
+        else
+          vim.notify(table.concat(stderr, "\n"), vim.log.levels.ERROR, {
+            id = notification_id,
+            title = "Error creating remote directory",
+            timeout = 4000,
+            replace = notification_id,
+            icon = " ",
+          })
+        end
       end
     end,
   })
