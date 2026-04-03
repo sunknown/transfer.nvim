@@ -140,6 +140,11 @@ M.setup = function()
     require("transfer.transfer").show_changed_files()
   end, { nargs = 0 })
 
+  -- TransferShowChangedBranch - preview all files changed in current branch vs main/master
+  vim.api.nvim_create_user_command("TransferShowChangedBranch", function()
+    require("transfer.transfer").show_changed_branch_files()
+  end, { nargs = 0 })
+
   -- TransferChangedFiles - upload all uncommitted changed files
   vim.api.nvim_create_user_command("TransferChangedFiles", function()
     require("transfer.transfer").upload_changed_files()

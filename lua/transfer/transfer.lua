@@ -947,6 +947,52 @@ function M.show_changed_files()
   vim.api.nvim_command("copen")
 end
 
+-- Show which branch-scope changed files would be uploaded by TransferChangedFiles
+-- (all commits in current branch + uncommitted, compared to origin/main or origin/master)
+-- @return void
+function M.show_changed_branch_files()
+  local cwd = vim.loop.cwd()
+  local files, err = get_changed_files("branch", cwd)
+
+  if files == nil then
+    vim.notify(err, vim.log.levels.ERROR, {
+      title = "TransferShowChangedBranch",
+      timeout = 4000,
+    })
+    return
+  end
+
+  if #files == 0 then
+    vim.notify("No changed files", vim.log.levels.INFO, {
+      title = "TransferShowChangedBranch",
+      timeout = 3000,
+    })
+    return
+  end
+
+  local would_upload = {}
+  local would_skip = {}
+
+  for _, file in ipairs(files) do
+    local local_path = cwd .. "/" .. file
+    local remote_path, _ = M.remote_rsync_path(local_path, true)
+    if remote_path then
+      table.insert(would_upload, "  " .. file .. " -> " .. remote_path)
+    else
+      table.insert(would_skip, "  " .. file .. " (not mapped)")
+    end
+  end
+
+  local lines = {}
+  table.insert(lines, "Would upload (" .. #would_upload .. "):")
+  vim.list_extend(lines, would_upload)
+  table.insert(lines, "Would skip (" .. #would_skip .. "):")
+  vim.list_extend(lines, would_skip)
+
+  vim.fn.setqflist({}, "r", { title = "TransferShowChangedBranch", lines = lines })
+  vim.api.nvim_command("copen")
+end
+
 -- Upload all uncommitted changed files to the remote server
 -- @return void
 function M.upload_changed_files()
