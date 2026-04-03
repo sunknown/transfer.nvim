@@ -861,6 +861,47 @@ function M.diff_file(local_path)
   end)
 end
 
+-- detect whether origin/main or origin/master exists
+-- @param cwd string
+-- @return string|nil  e.g. "origin/main", or nil if neither found
+local function find_base_branch(cwd)
+  vim.fn.system({ "git", "-C", cwd, "rev-parse", "--verify", "origin/main" })
+  if vim.v.shell_error == 0 then return "origin/main" end
+  vim.fn.system({ "git", "-C", cwd, "rev-parse", "--verify", "origin/master" })
+  if vim.v.shell_error == 0 then return "origin/master" end
+  return nil
+end
+
+-- get list of changed files from git
+-- @param mode string  "uncommitted" | "branch"
+-- @param cwd string
+-- @return table|nil, string|nil  (file list, error message)
+local function get_changed_files(mode, cwd)
+  if mode == "uncommitted" then
+    local files = vim.fn.systemlist({ "git", "-C", cwd, "diff", "HEAD", "--name-only", "--diff-filter=ACMR" })
+    if vim.v.shell_error ~= 0 then
+      return nil, "git error or not in a repository"
+    end
+    return vim.tbl_filter(function(f) return f ~= "" end, files), nil
+  elseif mode == "branch" then
+    local base = find_base_branch(cwd)
+    if base == nil then
+      return nil, "Could not find origin/main or origin/master"
+    end
+    local merge_base = vim.fn.system({ "git", "-C", cwd, "merge-base", "HEAD", base })
+    if vim.v.shell_error ~= 0 then
+      return nil, "Could not determine merge-base with " .. base
+    end
+    merge_base = vim.trim(merge_base)
+    local files = vim.fn.systemlist({ "git", "-C", cwd, "diff", merge_base, "--name-only", "--diff-filter=ACMR" })
+    if vim.v.shell_error ~= 0 then
+      return nil, "git diff error"
+    end
+    return vim.tbl_filter(function(f) return f ~= "" end, files), nil
+  end
+  return nil, "unknown mode: " .. tostring(mode)
+end
+
 -- Show which changed git files would be uploaded by TransferChangedFiles
 -- @return void
 function M.show_changed_files()
